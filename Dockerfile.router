@@ -1,0 +1,13 @@
+FROM golang:1.23.4-alpine
+
+WORKDIR /app
+COPY cmd/router ./cmd/router
+COPY internal ./internal
+
+COPY go.mod go.sum ./
+RUN go mod tidy
+
+WORKDIR /app/cmd/router
+RUN go build -o /app/router
+
+ENTRYPOINT ["/app/router"]

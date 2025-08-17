@@ -7,14 +7,24 @@ import (
 	"os"
 	"time"
 
+	"github.com/DrPhist/esb-emulator/internal/generator"
+	"github.com/DrPhist/esb-emulator/internal/kafkautil"
 	"github.com/segmentio/kafka-go"
-	"github.com/you/esb-emulator/internal/generator"
 )
 
 func main() {
-	broker := env("KAFKA_BROKER", "localhost:9092")
+	// Use the host-facing listener you exposed in docker-compose.
+	// Override with KAFKA_BROKER if needed.
+	broker := env("KAFKA_BROKER", "localhost:9094")
 	topic := env("TOPIC", "esb.inbound")
-	rate := dur("RATE", 250*time.Millisecond) // event every 250ms
+	rate := dur("RATE", 250*time.Millisecond) // one event every 250ms
+
+	// Ensure the inbound topic exists before producing.
+	kafkautil.MustEnsureTopic(broker, kafka.TopicConfig{
+		Topic:             topic,
+		NumPartitions:     3,
+		ReplicationFactor: 1,
+	})
 
 	w := &kafka.Writer{
 		Addr:         kafka.TCP(broker),
@@ -22,19 +32,40 @@ func main() {
 		Balancer:     &kafka.Hash{}, // stable key routing
 		BatchTimeout: 10 * time.Millisecond,
 	}
+
 	defer w.Close()
 
 	log.Printf("producer -> %s (broker %s)\n", topic, broker)
+
 	for {
 		ev := generator.NewEvent()
 		b, _ := json.Marshal(ev)
+
+		// Key by event type; you could also key by order_id/payment_id for per-entity ordering.
 		msg := kafka.Message{Key: []byte(ev.Type), Value: b}
+
 		if err := w.WriteMessages(context.Background(), msg); err != nil {
 			log.Printf("write error: %v", err)
 		}
+
 		time.Sleep(rate)
 	}
 }
 
-func env(k, def string) string { v := os.Getenv(k); if v == "" { return def }; return v }
-func dur(k string, def time.Duration) time.Duration { if v := os.Getenv(k); v != "" { if d, err := time.ParseDuration(v); err == nil { return d } }; return def }
+func env(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+
+	return def
+}
+
+func dur(k string, def time.Duration) time.Duration {
+	if v := os.Getenv(k); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+
+	return def
+}

@@ -41,6 +41,7 @@ func NewEvent() Event {
 		"correlation_id": gofakeit.UUID(),
 		"source":         "emulator.v1",
 	}
+
 	payload := map[string]interface{}{}
 
 	switch t {
