@@ -55,6 +55,7 @@ services:
 
   router:
     build:
+      context: .
       dockerfile: Dockerfile.router
     container_name: router
     depends_on:
@@ -67,6 +68,7 @@ services:
 
   producer:
     build:
+      context: .
       dockerfile: Dockerfile.producer
     container_name: producer
     depends_on:
