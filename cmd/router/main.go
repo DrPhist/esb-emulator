@@ -12,10 +12,12 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+// Event represents a Kafka message event.
 type Event struct {
 	Type string `json:"type"`
 }
 
+// DLQ represents a dead-letter queue message.
 type DLQ struct {
 	Reason string `json:"reason"`
 	Raw    string `json:"raw"`
@@ -39,7 +41,7 @@ func main() {
 		Brokers:        []string{broker},
 		Topic:          in,
 		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0, // explicit commits
+		CommitInterval: 0,
 		MinBytes:       1,
 		MaxBytes:       10e6,
 	})
@@ -90,8 +92,10 @@ func main() {
 	}
 }
 
+// validType checks if the event type is valid.
 func validType(t string) bool { return t == "order" || t == "payment" }
 
+// reason returns the reason for a dead-letter queue message.
 func reason(err error, t string) string {
 	if err != nil {
 		return "invalid_json"
@@ -104,6 +108,7 @@ func reason(err error, t string) string {
 	return "unknown"
 }
 
+// compact removes all whitespace from the beginning and end of a string.
 func compact(s string) string {
 	sc := bufio.NewScanner(strings.NewReader(s))
 	if sc.Scan() {
@@ -113,6 +118,7 @@ func compact(s string) string {
 	return strings.TrimSpace(s)
 }
 
+// env retrieves an environment variable or returns a default value.
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v

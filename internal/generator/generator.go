@@ -9,6 +9,7 @@ import (
 	"github.com/brianvoe/gofakeit/v7"
 )
 
+// Event represents a Kafka message event.
 type Event struct {
 	ID       string                 `json:"id"`
 	Type     string                 `json:"type"` // "order" | "payment" | other
@@ -17,13 +18,14 @@ type Event struct {
 	Payload  map[string]interface{} `json:"payload"`
 }
 
+// init initializes the fake data generator.
 func init() {
 	seed := time.Now().UnixNano()
 	gofakeit.Seed(seed)
 }
 
+// randomType returns a random event type.
 func randomType() string {
-	// Mostly valid, sometimes junk to exercise DLQ
 	switch n := rand.Intn(10); {
 	case n < 5:
 		return "order"
@@ -34,6 +36,7 @@ func randomType() string {
 	}
 }
 
+// NewEvent creates a new random event.
 func NewEvent() Event {
 	t := randomType()
 	id := gofakeit.UUID()

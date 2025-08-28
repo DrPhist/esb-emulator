@@ -44,6 +44,7 @@ func main() {
 	}
 }
 
+// env retrieves an environment variable or returns a default value.
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v

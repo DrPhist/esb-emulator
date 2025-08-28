@@ -39,7 +39,7 @@ services:
     ports:
       - "8080:8080"
 
-  # One-shot init to create topics deterministically (avoids auto-create races)
+  # One-shot init to create topics -- avoiding auto-create races
   init-topics:
     image: bitnami/kafka:3.8.0
     depends_on:
@@ -55,7 +55,6 @@ services:
 
   router:
     build:
-      context: .
       dockerfile: Dockerfile.router
     container_name: router
     depends_on:
@@ -68,7 +67,6 @@ services:
 
   producer:
     build:
-      context: .
       dockerfile: Dockerfile.producer
     container_name: producer
     depends_on:

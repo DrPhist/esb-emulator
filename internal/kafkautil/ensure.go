@@ -7,7 +7,6 @@ import (
 )
 
 // EnsureTopic creates a topic with the given configuration if it does not exist.
-// The call is idempotent on modern Kafka brokers.
 func EnsureTopic(broker string, cfg kafka.TopicConfig) error {
 	conn, err := kafka.Dial("tcp", broker)
 	if err != nil {
@@ -16,8 +15,8 @@ func EnsureTopic(broker string, cfg kafka.TopicConfig) error {
 
 	defer conn.Close()
 
+	// Some brokers return TopicAlreadyExists as an error; log and continue.
 	if err := conn.CreateTopics(cfg); err != nil {
-		// Some brokers return TopicAlreadyExists as an error; log and continue.
 		log.Printf("EnsureTopic: %s -> %v", cfg.Topic, err)
 		return err
 	}

@@ -13,7 +13,8 @@ import (
 )
 
 func main() {
-	// Use the host-facing listener you exposed in docker-compose.
+
+	// Use the host-facing listener exposed in docker-compose.
 	// Override with KAFKA_BROKER if needed.
 	broker := env("KAFKA_BROKER", "localhost:9094")
 	topic := env("TOPIC", "esb.inbound")
@@ -29,7 +30,7 @@ func main() {
 	w := &kafka.Writer{
 		Addr:         kafka.TCP(broker),
 		Topic:        topic,
-		Balancer:     &kafka.Hash{}, // stable key routing
+		Balancer:     &kafka.Hash{},
 		BatchTimeout: 10 * time.Millisecond,
 	}
 
@@ -52,6 +53,7 @@ func main() {
 	}
 }
 
+// env retrieves an environment variable or returns a default value.
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
@@ -60,6 +62,7 @@ func env(k, def string) string {
 	return def
 }
 
+// dur retrieves a duration from an environment variable or returns a default value.
 func dur(k string, def time.Duration) time.Duration {
 	if v := os.Getenv(k); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
