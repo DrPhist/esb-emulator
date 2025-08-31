@@ -37,16 +37,18 @@ func main() {
 	kafkautil.MustEnsureTopic(broker, kafka.TopicConfig{Topic: outPayments, NumPartitions: 3, ReplicationFactor: 1})
 	kafkautil.MustEnsureTopic(broker, kafka.TopicConfig{Topic: dlq, NumPartitions: 1, ReplicationFactor: 1})
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        []string{broker},
-		Topic:          in,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: 0,
-		MinBytes:       1,
-		MaxBytes:       10e6,
-	})
+	// Get the number of partitions for the inbound topic
+	conn, err := kafka.Dial("tcp", broker)
+	if err != nil {
+		log.Fatalf("failed to dial kafka: %v", err)
+	}
 
-	defer reader.Close()
+	partitions, err := conn.ReadPartitions(in)
+	if err != nil {
+		log.Fatalf("failed to get partitions: %v", err)
+	}
+
+	conn.Close()
 
 	mkWriter := func(topic string) *kafka.Writer {
 		return &kafka.Writer{Addr: kafka.TCP(broker), Topic: topic, Balancer: &kafka.Hash{}}
@@ -61,35 +63,61 @@ func main() {
 	defer wDLQ.Close()
 
 	log.Printf("router: %s -> [%s, %s] dlq=%s", in, outOrders, outPayments, dlq)
-	for {
-		m, err := reader.FetchMessage(context.Background())
-		if err != nil {
-			log.Fatalf("fetch: %v", err)
-		}
 
-		var e Event
+	// Create a reader for each partition
+	for _, p := range partitions {
+		go func(partition int) {
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Brokers:        []string{broker},
+				Topic:          in,
+				Partition:      partition,
+				StartOffset:    kafka.FirstOffset,
+				CommitInterval: 0,
+				MinBytes:       1,
+				MaxBytes:       10e6,
+			})
 
-		msg := string(m.Value)
-		if err := json.Unmarshal(m.Value, &e); err != nil || !validType(e.Type) {
-			dq, _ := json.Marshal(DLQ{Reason: reason(err, e.Type), Raw: compact(msg)})
-			if err := wDLQ.WriteMessages(context.Background(), kafka.Message{Key: []byte("dlq"), Value: dq}); err != nil {
-				log.Printf("dlq write error: %v", err)
+			defer reader.Close()
+
+			for {
+				m, err := reader.FetchMessage(context.Background())
+				if err != nil {
+					log.Fatalf("fetch: %v", err)
+				}
+
+				var e Event
+
+				msg := string(m.Value)
+				if err := json.Unmarshal(m.Value, &e); err != nil || !validType(e.Type) {
+					dq, _ := json.Marshal(DLQ{Reason: reason(err, e.Type), Raw: compact(msg)})
+					if err := wDLQ.WriteMessages(context.Background(), kafka.Message{Key: []byte("dlq"), Value: dq}); err != nil {
+						log.Printf("dlq write error: %v", err)
+					}
+
+					_ = reader.CommitMessages(context.Background(), m)
+
+					continue
+				}
+
+				target := map[string]*kafka.Writer{
+					"order":   wOrders,
+					"payment": wPayments,
+				}[e.Type]
+
+				if target == nil {
+					target = wDLQ
+				}
+
+				if err := target.WriteMessages(context.Background(), kafka.Message{Key: m.Key, Value: m.Value}); err != nil {
+					log.Printf("route write error: %v", err)
+				}
+
+				_ = reader.CommitMessages(context.Background(), m)
 			}
-			_ = reader.CommitMessages(context.Background(), m)
-			continue
-		}
-
-		target := map[string]*kafka.Writer{"order": wOrders, "payment": wPayments}[e.Type]
-		if target == nil {
-			target = wDLQ
-		}
-
-		if err := target.WriteMessages(context.Background(), kafka.Message{Key: m.Key, Value: m.Value}); err != nil {
-			log.Printf("route write error: %v", err)
-		}
-
-		_ = reader.CommitMessages(context.Background(), m)
+		}(p.ID)
 	}
+
+	select {} // Block forever
 }
 
 // validType checks if the event type is valid.

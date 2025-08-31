@@ -44,7 +44,6 @@ func main() {
 
 		// Key by event type; you could also key by order_id/payment_id for per-entity ordering.
 		msg := kafka.Message{Key: []byte(ev.Type), Value: b}
-
 		if err := w.WriteMessages(context.Background(), msg); err != nil {
 			log.Printf("write error: %v", err)
 		}

@@ -26,12 +26,12 @@ func init() {
 
 // randomType returns a random event type.
 func randomType() string {
-	switch n := rand.Intn(10); {
-	case n < 5:
+	n := rand.Intn(10)
+	if n < 5 {
 		return "order"
-	case n < 9:
+	} else if n > 5 {
 		return "payment"
-	default:
+	} else {
 		return "mystery" // will route to DLQ
 	}
 }

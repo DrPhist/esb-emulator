@@ -40,6 +40,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("read: %v", err)
 		}
+
 		fmt.Printf("[%s] key=%s value=%s\n", topic, string(m.Key), string(m.Value))
 	}
 }
